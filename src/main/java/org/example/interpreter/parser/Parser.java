@@ -2,6 +2,7 @@ package org.example.interpreter.parser;
 
 import lombok.Getter;
 import org.example.interpreter.ast.Expression;
+import org.example.interpreter.ast.ExpressionStatement;
 import org.example.interpreter.ast.Identifier;
 import org.example.interpreter.ast.LetStatement;
 import org.example.interpreter.ast.Program;
@@ -17,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.example.interpreter.parser.OperatorPrecedence.EQUALS;
+import static org.example.interpreter.parser.OperatorPrecedence.LOWEST;
 
 public class Parser {
     private Lexer lexer;
@@ -34,6 +38,7 @@ public class Parser {
         this.lexer = lexer;
         this.errors = new ArrayList<>();
         this.prefixParseFns = new HashMap<>();
+        this.prefixParseFns.put(TokenType.IDENT, this::parseIdentifier);
         this.infixParseFns = new HashMap<>();
 
         // 토큰을 두 개 읽어서 curToken / peekToken 세팅
@@ -98,8 +103,30 @@ public class Parser {
         return new ReturnStatement(token, null);
     }
 
-    private Statement parseExpressionStatement() {
-        return null;
+    private ExpressionStatement parseExpressionStatement() {
+        ExpressionStatement stmt = new ExpressionStatement(curToken, this.parseExpression(LOWEST));
+
+        // 세미콜론은 선택적임. REPL에 세미콜론 없이 5 + 5 등을 간편하게 입력하기 위함
+        if (this.peekTokenIs(TokenType.SEMICOLON)) {
+            this.nextToken();
+        }
+
+
+        return stmt;
+    }
+
+    private Expression parseExpression(OperatorPrecedence precedence) {
+        Supplier<Expression> prefix = this.prefixParseFns.get(curToken.getType());
+        if (prefix == null) {
+            return null;
+        }
+
+        Expression leftExp = prefix.get();
+        return leftExp;
+    }
+
+    private Expression parseIdentifier() {
+        return new Identifier(this.curToken, this.curToken.getLiteral());
     }
 
     private void nextToken() {
