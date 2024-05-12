@@ -6,6 +6,7 @@ import org.example.interpreter.ast.ExpressionStatement;
 import org.example.interpreter.ast.Identifier;
 import org.example.interpreter.ast.IntegerLiteral;
 import org.example.interpreter.ast.LetStatement;
+import org.example.interpreter.ast.PrefixExpression;
 import org.example.interpreter.ast.Program;
 import org.example.interpreter.ast.ReturnStatement;
 import org.example.interpreter.ast.Statement;
@@ -22,6 +23,7 @@ import java.util.function.Supplier;
 
 import static org.example.interpreter.parser.OperatorPrecedence.EQUALS;
 import static org.example.interpreter.parser.OperatorPrecedence.LOWEST;
+import static org.example.interpreter.parser.OperatorPrecedence.PREFIX;
 
 public class Parser {
     private Lexer lexer;
@@ -41,6 +43,8 @@ public class Parser {
         this.prefixParseFns = new HashMap<>();
         this.prefixParseFns.put(TokenType.IDENT, this::parseIdentifier);
         this.prefixParseFns.put(TokenType.INT, this::parseIntergerLiteral);
+        this.prefixParseFns.put(TokenType.BANG, this::parsePrefixExpression);
+        this.prefixParseFns.put(TokenType.MINUS, this::parsePrefixExpression);
         this.infixParseFns = new HashMap<>();
 
         // 토큰을 두 개 읽어서 curToken / peekToken 세팅
@@ -120,6 +124,7 @@ public class Parser {
     private Expression parseExpression(OperatorPrecedence precedence) {
         Supplier<Expression> prefix = this.prefixParseFns.get(curToken.getType());
         if (prefix == null) {
+            this.noPrefixParseFnError(curToken.getType());
             return null;
         }
 
@@ -139,6 +144,14 @@ public class Parser {
             this.errors.add(msg);
             return null;
         }
+    }
+
+    private Expression parsePrefixExpression() {
+        PrefixExpression expression = new PrefixExpression(curToken, curToken.getLiteral());
+        this.nextToken();
+
+        expression.setRight(this.parseExpression(PREFIX));
+        return expression;
     }
 
     private void nextToken() {
@@ -168,5 +181,10 @@ public class Parser {
         String message = String.format("expected next token to be %s, got %s instead",
                 tokenType.name(), this.peekToken.getType().name());
         this.errors.add(message);
+    }
+
+    private void noPrefixParseFnError(TokenType t) {
+        String msg = String.format("no prefix parse function for %s found", t.name());
+        this.errors.add(msg);
     }
 }
