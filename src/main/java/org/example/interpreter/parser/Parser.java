@@ -4,6 +4,7 @@ import lombok.Getter;
 import org.example.interpreter.ast.Expression;
 import org.example.interpreter.ast.ExpressionStatement;
 import org.example.interpreter.ast.Identifier;
+import org.example.interpreter.ast.IntegerLiteral;
 import org.example.interpreter.ast.LetStatement;
 import org.example.interpreter.ast.Program;
 import org.example.interpreter.ast.ReturnStatement;
@@ -39,6 +40,7 @@ public class Parser {
         this.errors = new ArrayList<>();
         this.prefixParseFns = new HashMap<>();
         this.prefixParseFns.put(TokenType.IDENT, this::parseIdentifier);
+        this.prefixParseFns.put(TokenType.INT, this::parseIntergerLiteral);
         this.infixParseFns = new HashMap<>();
 
         // 토큰을 두 개 읽어서 curToken / peekToken 세팅
@@ -127,6 +129,16 @@ public class Parser {
 
     private Expression parseIdentifier() {
         return new Identifier(this.curToken, this.curToken.getLiteral());
+    }
+
+    private Expression parseIntergerLiteral() {
+        try {
+            return new IntegerLiteral(curToken, Integer.parseInt(curToken.getLiteral()));
+        } catch (NumberFormatException e) {
+            String msg = String.format("could not parse %s as integer", curToken.getLiteral());
+            this.errors.add(msg);
+            return null;
+        }
     }
 
     private void nextToken() {
