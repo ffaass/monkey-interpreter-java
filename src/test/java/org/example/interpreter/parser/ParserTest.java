@@ -4,6 +4,7 @@ package org.example.interpreter.parser;
 import org.example.interpreter.ast.Expression;
 import org.example.interpreter.ast.ExpressionStatement;
 import org.example.interpreter.ast.Identifier;
+import org.example.interpreter.ast.InfixExpression;
 import org.example.interpreter.ast.IntegerLiteral;
 import org.example.interpreter.ast.PrefixExpression;
 import org.example.interpreter.ast.Program;
@@ -130,10 +131,96 @@ class ParserTest {
         }
     }
 
+
     private static Stream<Arguments> parsingPrefixExpressionsSource() {
         return Stream.of(
                 Arguments.of("!5;", "!", 5),
                 Arguments.of("-15;", "-", 15)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("parsingInfixExpressionsSource")
+    void testParsingInfixExpressions(String input, int leftValue, String operator, int rightValue) {
+        Lexer lexer = new Lexer(input);
+        Parser parser = new Parser(lexer);
+
+        Program program = parser.parseProgram();
+
+        checkParserErrors(parser);
+
+        if (program.getStatements().size() != 1) {
+            Assertions.fail(String.format("program.Statements does not contain %d statements. got=%d%n", 1, program.getStatements().size()));
+        }
+
+        Statement statement = program.getStatements().get(0);
+        if (!(statement instanceof ExpressionStatement)) {
+            Assertions.fail(String.format("program.Statements[0] is not ExpressionStatement. got=%s%n", statement.getClass().getName()));
+        }
+
+        Expression exp = ((ExpressionStatement) statement).getExpression();
+        if (!(exp instanceof InfixExpression)) {
+            Assertions.fail(String.format("exp not InfixExpression. got=%s", exp.getClass().getName()));
+        }
+
+        InfixExpression infixExp = (InfixExpression) exp;
+
+        if (!testIntegerLiteral(infixExp.getLeft(), leftValue)) {
+            Assertions.fail();
+        }
+
+        if (!infixExp.getOperator().equals(operator)) {
+            Assertions.fail(String.format("exp.Operator not %s. got=%s", operator, infixExp.getOperator()));
+        }
+
+        if (!testIntegerLiteral(infixExp.getRight(), rightValue)) {
+            Assertions.fail();
+        }
+    }
+
+
+    private static Stream<Arguments> parsingInfixExpressionsSource() {
+        return Stream.of(
+                Arguments.of("5 + 5;", 5, "+", 5),
+                Arguments.of("5 - 5;", 5, "-", 5),
+                Arguments.of("5 * 5;", 5, "*", 5),
+                Arguments.of("5 / 5;", 5, "/", 5),
+                Arguments.of("5 > 5;", 5, ">", 5),
+                Arguments.of("5 < 5;", 5, "<", 5),
+                Arguments.of("5 == 5;", 5, "==", 5),
+                Arguments.of("5 != 5;", 5, "!=", 5)
+        );
+    }
+
+
+    @ParameterizedTest
+    @MethodSource("operatorPrecedenceParsingSource")
+    void testOperatorPrecedenceParsing(String input, String expected) {
+        Lexer lexer = new Lexer(input);
+        Parser parser = new Parser(lexer);
+
+        Program program = parser.parseProgram();
+
+        checkParserErrors(parser);
+        String actual = program.toString();
+        Assertions.assertEquals(expected, actual);
+    }
+
+
+    private static Stream<Arguments> operatorPrecedenceParsingSource() {
+        return Stream.of(
+                Arguments.of("-a * b", "((-a) * b)"),
+                Arguments.of("!-a", "(!(-a))"),
+                Arguments.of("a + b + c", "((a + b) + c)"),
+                Arguments.of("a + b - c", "((a + b) - c)"),
+                Arguments.of("a * b * c", "((a * b) * c)"),
+                Arguments.of("a * b / c", "((a * b) / c)"),
+                Arguments.of("a + b / c", "(a + (b / c))"),
+                Arguments.of("a + b * c + d / e - f;", "(((a + (b * c)) + (d / e)) - f)"),
+                Arguments.of("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+                Arguments.of("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+                Arguments.of("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+                Arguments.of("3 + 4 * 5 == 3 * 1 + 4 * 5", "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))")
         );
     }
 

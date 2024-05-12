@@ -13,6 +13,11 @@ public class Identifier implements Expression {
         this.value = value;
     }
 
+    @Override
+    public String toString() {
+        return value;
+    }
+
     public String getTokenLiteral() {
         return token.getLiteral();
     }

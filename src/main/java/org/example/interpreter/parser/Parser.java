@@ -4,6 +4,7 @@ import lombok.Getter;
 import org.example.interpreter.ast.Expression;
 import org.example.interpreter.ast.ExpressionStatement;
 import org.example.interpreter.ast.Identifier;
+import org.example.interpreter.ast.InfixExpression;
 import org.example.interpreter.ast.IntegerLiteral;
 import org.example.interpreter.ast.LetStatement;
 import org.example.interpreter.ast.PrefixExpression;
@@ -22,10 +23,23 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.example.interpreter.parser.OperatorPrecedence.EQUALS;
+import static org.example.interpreter.parser.OperatorPrecedence.LESSGREATER;
 import static org.example.interpreter.parser.OperatorPrecedence.LOWEST;
 import static org.example.interpreter.parser.OperatorPrecedence.PREFIX;
+import static org.example.interpreter.parser.OperatorPrecedence.PRODUCT;
+import static org.example.interpreter.parser.OperatorPrecedence.SUM;
 
 public class Parser {
+    private static final Map<TokenType, OperatorPrecedence> PRECEDENCES = Map.of(
+            TokenType.EQ, EQUALS,
+            TokenType.NOT_EQ, EQUALS,
+            TokenType.LT, LESSGREATER,
+            TokenType.GT, LESSGREATER,
+            TokenType.PLUS, SUM,
+            TokenType.MINUS, SUM,
+            TokenType.SLASH, PRODUCT,
+            TokenType.ASTERISK, PRODUCT
+    );
     private Lexer lexer;
 
     @Getter
@@ -45,7 +59,16 @@ public class Parser {
         this.prefixParseFns.put(TokenType.INT, this::parseIntergerLiteral);
         this.prefixParseFns.put(TokenType.BANG, this::parsePrefixExpression);
         this.prefixParseFns.put(TokenType.MINUS, this::parsePrefixExpression);
+
         this.infixParseFns = new HashMap<>();
+        this.infixParseFns.put(TokenType.EQ, this::parseInfixExpression);
+        this.infixParseFns.put(TokenType.NOT_EQ, this::parseInfixExpression);
+        this.infixParseFns.put(TokenType.LT, this::parseInfixExpression);
+        this.infixParseFns.put(TokenType.GT, this::parseInfixExpression);
+        this.infixParseFns.put(TokenType.PLUS, this::parseInfixExpression);
+        this.infixParseFns.put(TokenType.MINUS, this::parseInfixExpression);
+        this.infixParseFns.put(TokenType.SLASH, this::parseInfixExpression);
+        this.infixParseFns.put(TokenType.ASTERISK, this::parseInfixExpression);
 
         // 토큰을 두 개 읽어서 curToken / peekToken 세팅
         this.nextToken();
@@ -129,6 +152,15 @@ public class Parser {
         }
 
         Expression leftExp = prefix.get();
+        while (!this.peekTokenIs(TokenType.SEMICOLON) && precedence.ordinal() < this.peekPrecedence().ordinal()) {
+            Function<Expression, Expression> infix = this.infixParseFns.get(this.peekToken.getType());
+            if (infix == null) {
+                return leftExp;
+            }
+            this.nextToken();
+            leftExp = infix.apply(leftExp);
+        }
+
         return leftExp;
     }
 
@@ -152,6 +184,15 @@ public class Parser {
 
         expression.setRight(this.parseExpression(PREFIX));
         return expression;
+    }
+
+    private Expression parseInfixExpression(Expression left) {
+        InfixExpression infixExpression = new InfixExpression(curToken, curToken.getLiteral(), left);
+        OperatorPrecedence precedence = this.curPrecedence();
+        this.nextToken();
+        infixExpression.setRight(this.parseExpression(precedence));
+
+        return infixExpression;
     }
 
     private void nextToken() {
@@ -186,5 +227,13 @@ public class Parser {
     private void noPrefixParseFnError(TokenType t) {
         String msg = String.format("no prefix parse function for %s found", t.name());
         this.errors.add(msg);
+    }
+
+    private OperatorPrecedence peekPrecedence() {
+        return PRECEDENCES.getOrDefault(this.peekToken.getType(), LOWEST);
+    }
+
+    private OperatorPrecedence curPrecedence() {
+        return PRECEDENCES.getOrDefault(this.curToken.getType(), LOWEST);
     }
 }
